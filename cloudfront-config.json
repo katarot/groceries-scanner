@@ -1,0 +1,34 @@
+{
+  "CallerReference": "groceries-scanner-2024",
+  "Comment": "Groceries Scanner PWA",
+  "DefaultRootObject": "index.html",
+  "Origins": {
+    "Quantity": 1,
+    "Items": [
+      {
+        "Id": "S3-altrulab-groceries-scanner",
+        "DomainName": "altrulab-groceries-scanner.s3.amazonaws.com",
+        "S3OriginConfig": {
+          "OriginAccessIdentity": ""
+        }
+      }
+    ]
+  },
+  "DefaultCacheBehavior": {
+    "TargetOriginId": "S3-altrulab-groceries-scanner",
+    "ViewerProtocolPolicy": "redirect-to-https",
+    "TrustedSigners": {
+      "Enabled": false,
+      "Quantity": 0
+    },
+    "ForwardedValues": {
+      "QueryString": false,
+      "Cookies": {
+        "Forward": "none"
+      }
+    },
+    "MinTTL": 0
+  },
+  "Enabled": true,
+  "PriceClass": "PriceClass_100"
+}

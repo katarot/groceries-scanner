@@ -23,7 +23,20 @@
       "edgeToEdgeEnabled": true
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "name": "Groceries Scanner",
+      "shortName": "Scanner",
+      "lang": "en",
+      "scope": "/groceries-scanner/",
+      "startUrl": "/groceries-scanner/",
+      "display": "standalone",
+      "orientation": "portrait",
+      "themeColor": "#2c3e50",
+      "backgroundColor": "#ffffff"
+    },
+    "plugins": [
+      "expo-barcode-scanner",
+      "react-native-vision-camera"
+    ]
   }
 }
