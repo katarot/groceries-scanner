@@ -80,18 +80,6 @@ export default function HistoryScreen({ receipts, onViewReceipt, onDeleteReceipt
                 {receipt.items.length} items • ${receipt.total.toFixed(2)}
               </Text>
 
-              {/* DELETE BUTTON */}
-              <TouchableOpacity 
-                style={styles.deleteButton} 
-                onPress={(e) => {
-                  // e.preventDefault() prevents the button from triggering the parent TouchableOpacity's toggleReceipt function
-                  // the delete button becomes a separate clickable area within the receipt item
-                  e.preventDefault();
-                  onDeleteReceipt(receipt.id);
-                }}>
-                  <Text style={{ color: 'white', fontSize: 16 }}>X</Text>
-              </TouchableOpacity>
-
               {/* PDF EXPORT
                 - Each receipt gets a "PDF" button next to the delete button
                 - When pressed, it generates a PDF of that specific receipt with all its items
@@ -110,6 +98,18 @@ export default function HistoryScreen({ receipts, onViewReceipt, onDeleteReceipt
                 <Text style={{ color: 'white', fontSize: 12 }}>
                   {exportingPDF === receipt.id ? '...' : 'PDF'}
                 </Text>
+              </TouchableOpacity>
+
+              {/* DELETE BUTTON */}
+              <TouchableOpacity 
+                style={styles.deleteButton} 
+                onPress={(e) => {
+                  // e.preventDefault() prevents the button from triggering the parent TouchableOpacity's toggleReceipt function
+                  // the delete button becomes a separate clickable area within the receipt item
+                  e.preventDefault();
+                  onDeleteReceipt(receipt.id);
+                }}>
+                  <Text style={{ color: 'white', fontSize: 16 }}>X</Text>
               </TouchableOpacity>
 
               
