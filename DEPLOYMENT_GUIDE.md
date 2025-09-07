@@ -76,6 +76,8 @@ tabBarStyle: {
 ### Test Locally
 ```bash
 npx expo start --web
+# For HTTPS (required for camera access):
+npx expo start --web --https
 ```
 
 ### Build for Production
@@ -309,6 +311,37 @@ To update your app:
 ```bash
 npx expo export --platform web
 aws s3 sync ./dist s3://altrulab-groceries-scanner --delete
+# IMPORTANT: Clear CloudFront cache to ensure users get latest version
+aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --paths "/*"
+```
+
+## Web Barcode Scanner (Optional)
+
+For web browsers that don't support expo-camera barcode scanning:
+
+### Install ZXing Library
+```bash
+npm install @zxing/library
+```
+
+### Create WebBarcodeScanner Component
+Create `WebBarcodeScanner.tsx` with web-compatible barcode scanning using ZXing library.
+
+### Update Camera Permissions for Web
+In your scanner screen, handle web permissions differently:
+```tsx
+useEffect(() => {
+  (async () => {
+    if (Platform.OS === 'web') {
+      // For web, permissions are handled by WebBarcodeScanner
+      setHasPermission(true);
+    } else {
+      // For native apps, use expo-camera permissions
+      const { status } = await Camera.requestCameraPermissionsAsync();
+      setHasPermission(status === "granted");
+    }
+  })();
+}, []);
 ```
 
 ## AWS Services Used
@@ -325,6 +358,7 @@ aws s3 sync ./dist s3://altrulab-groceries-scanner --delete
 - **react-native-web**: Web compatibility layer
 - **react-dom**: React DOM renderer
 - **@expo/metro-runtime**: Metro bundler for web
+- **@zxing/library**: Web barcode scanning (optional)
 
 ## Troubleshooting
 
@@ -334,6 +368,9 @@ aws s3 sync ./dist s3://altrulab-groceries-scanner --delete
 2. **SSL certificate warnings**: Ensure ACM certificate is validated and attached to CloudFront
 3. **Camera not working**: Requires HTTPS for mobile browsers
 4. **PWA not installable**: Check manifest.json configuration in app.json
+5. **Old app version showing**: Browser cache issue - use incognito mode or clear cache
+6. **Front camera instead of back**: Web barcode scanner needs explicit camera selection
+7. **403 errors on JavaScript files**: Files not uploaded properly or CloudFront cache issue
 
 ### Useful Commands
 
@@ -351,6 +388,30 @@ Check DNS propagation:
 ```bash
 nslookup groceries-scanner.altrulab.com
 ```
+
+Clear CloudFront cache (essential after updates):
+```bash
+aws cloudfront create-invalidation --distribution-id YOUR_DISTRIBUTION_ID --paths "/*"
+```
+
+Check invalidation status:
+```bash
+aws cloudfront list-invalidations --distribution-id YOUR_DISTRIBUTION_ID
+```
+
+### Cache Issues
+
+**Problem**: Users see old version of app after updates
+**Solution**: 
+1. Always run CloudFront invalidation after deployment
+2. Test in incognito/private browser mode
+3. CloudFront cache invalidation takes 5-15 minutes to propagate globally
+
+**What CloudFront cache invalidation does:**
+- Forces CloudFront to delete cached files
+- Makes CloudFront fetch fresh files from S3
+- Ensures users get the latest app version
+- Without it, users may see old app for hours/days
 
 ## Cost Considerations
 
