@@ -8,16 +8,53 @@ import { BrowserMultiFormatReader } from '@zxing/library';
 interface WebBarcodeScannerProps {
   onBarcodeScanned: (data: { type: string; data: string }) => void; // Callback function when barcode is detected
   style?: any; // Optional style prop
-  facing?: 'front' | 'back'; // Add facing prop
+  facing?: 'front' | 'back', // Add facing prop
+  onCaptureFrame?: (imageData: string) => void;
+  // captureRef?: React.MutableRefObject<(() => void) | null>;
+  captureRef?: React.RefObject<(() => void) | null>;
 }
 
 // 
-export default function WebBarcodeScanner({ onBarcodeScanned, style, facing = 'back' }: WebBarcodeScannerProps) {
+export default function WebBarcodeScanner({ onBarcodeScanned, style, facing = 'back', onCaptureFrame, captureRef }: WebBarcodeScannerProps) {
 
   // Create a reference to the HTML video element for camera display
   const videoRef = useRef<HTMLVideoElement>(null);
+
   // Initialize the ZXing barcode reader (only created once)
   const [codeReader] = useState(() => new BrowserMultiFormatReader());
+
+  // 
+  const captureFrame = () => {
+    if (videoRef.current) {
+      // Create a canvas element using React NAtive's web implementation
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      // Get the video element - this needs to be passed from WebBarcodeScanner
+      // Get the video element from WebBarcodeScanner
+      // const videoElement = document.querySelector('video');
+      // if (!videoElement) throw new Error('Video element not found');
+
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+
+      // Draw current video frame to canvas
+      ctx?.drawImage(videoRef.current, 0, 0);
+      
+      // Convert canvas to blob for Tesseract
+      const imageData = canvas.toDataURL('image/png');
+        
+      onCaptureFrame?.(imageData);
+    }
+  }
+
+  // useEffect to expose captureFrame globally
+  useEffect(() => {
+    if (captureRef) {
+      captureRef.current = captureFrame;
+    }
+  }, [captureFrame]);
+  
 
   // Effect hook to start barcode scanning when component mounts
   useEffect(() => {
@@ -63,7 +100,7 @@ export default function WebBarcodeScanner({ onBarcodeScanned, style, facing = 'b
             device.label.toLowerCase().includes('rear') || 
             device.label.toLowerCase().includes('environment')
           ) || videoDevices[videoDevices.length - 1]; // Last camera is often back camera
-          // selectedDeviceId = backCamera[0]÷?.deviceId;
+          
           selectedDeviceId = backCamera?.deviceId;
           console.log("back selectedDeviceId: " + selectedDeviceId);
         } else {

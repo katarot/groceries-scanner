@@ -4,7 +4,7 @@ import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-nati
 type Item = {
   id: string;
   type: string;
-  // name: string;
+  name: string;
   price: string;
   quantity: string;
 };

@@ -6,6 +6,7 @@ import { exportReceiptToPDF } from './services/pdfService';
 type Item = {
   id: string;
   type: string;
+  name: string;
   price: string;
   quantity: string;
 };

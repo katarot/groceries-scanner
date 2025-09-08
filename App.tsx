@@ -6,12 +6,13 @@ import ScannerScreen from './ScannerScreen';
 import ItemsScreen from './ItemsScreen';
 import HistoryScreen from './HistoryScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Tesseract from 'tesseract.js';
 
 // Item object type
 type Item = {
   id: string; // UPC code
   type: string;
-  // name: string;
+  name: string;
   price: string;
   quantity: string;
 };
@@ -45,6 +46,9 @@ export default function App() {
   // Make receipts as a stateful value containing a list of Receipt,
   // and use setReceipts function to handle it.
   const [receipts, setReceipts] = useState<Receipt[]>([]);
+
+  // 
+
 
   // Load data on app start, to ensure the user sees their data immediately when reopening the app.
   useEffect(() => {

@@ -1,14 +1,15 @@
 import { Camera, CameraView } from 'expo-camera'; // expo-camera doesn't work properly on web - it's designed for native app
 // import { Camera, useCameraDevices, useCodeScanner, getCameraDevice, CodeScanner } from 'react-native-vision-camera';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Alert, Platform, SafeAreaView, StyleSheet, Text, TextInput, View, ScrollView, TouchableOpacity } from 'react-native';
 import WebBarcodeScanner from './WebBarcodeScanner';
+import Tesseract from 'tesseract.js';
 
 // Item object type 
 type Item = {
   id: string; // UPC code
   type: string;
-  // name: string;
+  name: string;
   price: string;
   quantity: string;
 };
@@ -24,8 +25,7 @@ interface ScannerScreenProps {
 */
 export default function ScannerScreen({ scannedItems, setScannedItems }: ScannerScreenProps) {
   
-  // Create hasPermission as a stateful boolean value, 
-  // and setHasPermission function to handle it.
+  // Create hasPermission as a stateful boolean value, and setHasPermission function to handle it.
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   
   // Fallback for permission
@@ -37,19 +37,26 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
   // 
   const [isScanning, setIsScanning] = useState<boolean>(true);
 
-  // Asks the user to grant permissions for accessing camera, 
-  // then set permission state value –hasPermission– to true by using (status === 'granted').
+  // OCR state
+  const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [detectedPrice, setDetectedPrice] = useState<string | null>(null);
+
+  // 
+  const captureRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     (async () => {
+      // Asks the user to grant permissions for accessing camera, 
+      // then set permission state value –hasPermission– to true by using (status === 'granted').
 
       if (Platform.OS === 'web') {
         // For web, handle permission in WebBarcodeScanner component.
-        setHasPermission(true);
         // The WebBarcodeScanner component will handle its own camera permissions 
         // when it tries to access navigator.mediaDevices. 
         // If the user denies camera access in the browser, the WebBarcodeScanner will 
         // catch the error and log it.
         // Web: Always proceeds to show WebBarcodeScanner (which handles its own permissions)
+        setHasPermission(true);
       } else {
         // For native apps, use expo-camera persmissions
         const { status } = await Camera.requestCameraPermissionsAsync();
@@ -68,24 +75,15 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
     })();
   }, []);
   
-  useEffect(() => { 
-    // if (hasPermission === true) {
-    //   Alert.alert('Platform OS: ' + Platform.OS);
-    //   const videInputDevices = await navigator.mediaDevices.enumerateDevices();
-    //   Alert.alert();
-    // }
-  });
-
-  // When the camera detects the barcode, set the scanned state true, 
-  // and include scanned information data into scannedItems state list. 
-  //  type param - The barcode type.
-  //  data param - The parsed information encoded in the barcode.
+  // Barcode Scan
   const handleBarCodeScanned = ({type, data}: {type: string; data: string}) => {
+    // When the camera detects the barcode, set the scanned state true, 
+    // and include scanned information data into scannedItems state list. 
+    //  type param - The barcode type.
+    //  data param - The parsed information encoded in the barcode.
     
-    // Alert.alert('here in handle bar code scanned fn');
-
+    // setIsScanning(true);
     console.log(`Scan info – type: ${type}, data: ${data}`);
-    
     // Set scanned state value to true.
     setScanned(true);
 
@@ -93,16 +91,51 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
 
     // Check for items in scannedItems list that are not passed in the data parameter, 
     // if so, then include an Item object into the scanned items state list.
-    setScannedItems([...scannedItems.filter(item => item.id !== data), { id: data, type: type === 'ean13' ? 'UPC' : type === 'qr' ? 'QR' : type, price: '', quantity: '1' }]);
-    
-    // console.log(`Scanned items list: \n`, scannedItems);
+    setScannedItems(
+      [...scannedItems
+        .filter(item => item.id !== data), 
+        { id: data, type: type === 'ean13' ? 'UPC' : type === 'qr' ? 'QR' : type, name: '', price: '', quantity: '1' }]);
+        
+    // setIsScanning(false);
     
     // After 2 seconds, set the scanned state value to false.
     setTimeout(() => setScanned(false), 2000);  // Because the scanned boolean state has to be false in order to scan again.
   
   };
 
+  // OCR processing callback - OCR processing happens here asynchronously.
+  const handleCapturedFrame = async (imageData: string) => {
+    try {
+      const { data: { text } } = await Tesseract.recognize(imageData, 'eng');
+      const priceMatch = text.match(/\$?\d+\.\d{2}/);
+      if (priceMatch) {
+        setDetectedPrice(priceMatch[0]);
+      }
+    } catch (error) {
+      console.error('Tesseract Error:', error);
+    } finally {
+      setOcrProcessing(false);
+    }
+  };
 
+  // OCR function
+  const captureAndProcessOCR = async () => {
+    setOcrProcessing(true);
+    try {
+      console.log("Platform.OS");
+      console.log(Platform.OS);
+      // For web platform, we need to pass a ref to get the video element
+      if (Platform.OS === 'web' && captureRef.current) {
+        captureRef.current(); // This triggers captureFrame which calls handleCapturedFrame
+      } else {
+        Alert.alert(`App is not running on a web-browser.\nTo detect a price, use a web browser.`);
+      }
+    } catch (error) {
+      console.error('OCR Error', error);
+      setOcrProcessing(false);
+    }
+  };
+  
   // Whenever the price or quantity value changes, 
   // we update the scanned items state list with the new item price or quantity.
   // price onChangeText -> update item price
@@ -186,6 +219,8 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
           onBarcodeScanned={scanned ? () => {} : handleBarCodeScanned}
           style={styles.camera}
           facing="back"
+          captureRef={captureRef}
+          onCaptureFrame={handleCapturedFrame}
         />
       ) : (
         <CameraView
@@ -294,7 +329,7 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
       {/* ACTION BUTTONS */}
       <View>
         <ScrollView horizontal style={styles.actionButtons} showsHorizontalScrollIndicator={false}>
-
+        
           {/* <TouchableOpacity style={styles.actionButton} onPress={() => setScannedItems([])}>
             <Text style={styles.actionButtonText}>Clear All</Text>
           </TouchableOpacity>
@@ -309,12 +344,44 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
           }}>
             <Text style={styles.actionButtonText}>Clear All</Text>
           </TouchableOpacity> */}
+
+          {/* UPC BARCODE SCANNER BUTTON */}
+          <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#444fe6ff'}]}>
+            <Text style={styles.actionButtonText}>
+              {scanned ? 'Scanning...' : 'Scan Barcode'}
+              </Text>
+          </TouchableOpacity>
+
+          {/* OCR PRICE DETECTION BUTTON */}
+          <TouchableOpacity
+            style={[styles.actionButton, { backgroundColor: '#28a745' }]}
+            onPress={captureAndProcessOCR}
+            disabled={ocrProcessing}
+          >
+            <Text style={styles.actionButtonText}>
+              {ocrProcessing ? 'Processing...' : 'Scan Price'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* QR CODE SCANNER BUTTON */}
+          <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#ffffffff'}]}>
+            <Text style={[styles.actionButtonText, {color: 'black'}]}>
+              Scan QR Code
+            </Text>
+          </TouchableOpacity>
+
+
         </ScrollView>
       </View>
 
       {/* TOTAL PRICE AMOUNT VIEW */}
       <View style={styles.totalAmountView}>
         <Text style={styles.total}>Total: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
+        {detectedPrice && (
+          <Text style={[styles.total, { color: '#28a745', fontSize: 18 }]}>
+            Detected Price: {detectedPrice}
+          </Text>
+        )}
       </View>
       
       {/* BUTTON TO SCAN ANOTHER ITEM */}
