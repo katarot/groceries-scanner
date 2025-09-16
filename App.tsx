@@ -10,11 +10,12 @@ import Tesseract from 'tesseract.js';
 
 // Item object type
 type Item = {
-  id: string; // UPC code
+  id: string;
   type: string;
   name: string;
   price: string;
   quantity: string;
+  scanSource: string; // Store original scan data for display
 };
 
 // Receipt object type
@@ -39,23 +40,22 @@ export default function App() {
 
   /** HOOKS  */
   
-  // Make scannedItems as a stateful value containing a list of Item,
-  // and use setScannedItems function to handle it.
+  // state variable:  scannedItems    - Retain scanned items (Item) data between renders,
+  // setter function: setScannedItems - update scannedItems and trigger React to render the component again with new data (re-rendering).
   const [scannedItems, setScannedItems] = useState<Item[]>([]);
-
+  
   // Make receipts as a stateful value containing a list of Receipt,
   // and use setReceipts function to handle it.
   const [receipts, setReceipts] = useState<Receipt[]>([]);
 
   // 
 
-
   // Load data on app start, to ensure the user sees their data immediately when reopening the app.
   useEffect(() => {
     loadScannedItemsFromStorage();
     loadReceiptsFromStorage();
   }, []);
-
+  
   // Auto-Save scanned items, which:
   // - watches scannedItems state - runs whenever the cart changes
   // - auto-saves to storage whenever items are added, removed, or modified

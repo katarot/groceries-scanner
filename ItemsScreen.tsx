@@ -7,6 +7,7 @@ type Item = {
   name: string;
   price: string;
   quantity: string;
+  scanSource: string; // Store original scan data for display
 };
 
 // Item Screen Properties interface type that contains:
@@ -41,9 +42,9 @@ export default function ItemsScreen({ scannedItems, setScannedItems, onSaveRecei
             // ITEM VIEW
             <View key={item.id} style={styles.item}>
               
-              {/* UPC LABEL */}
-              <Text style={styles.upc}>{item.type.toUpperCase()}: {item.id}</Text>
-
+              {/* UPC Code | QR Code LABEL */}
+              <Text style={styles.upc}>{item.type.toUpperCase()}: {item.name}</Text>
+              
               {/* PRICE AND QUANTITY DETAILS */}
               <Text style={styles.details}>
                 Price: ${parseFloat(item.price) || 0} × {parseInt(item.quantity) || 0} = ${((parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0)).toFixed(2)}

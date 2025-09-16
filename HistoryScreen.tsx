@@ -9,6 +9,7 @@ type Item = {
   name: string;
   price: string;
   quantity: string;
+  scanSource: string; // Store original scan data for display
 };
 
 type Receipt = {

@@ -7,11 +7,12 @@ import Tesseract from 'tesseract.js';
 
 // Item object type 
 type Item = {
-  id: string; // UPC code
+  id: string;
   type: string;
   name: string;
   price: string;
   quantity: string;
+  scanSource: string; 
 };
 
 // Scanner screen properties interface
@@ -20,107 +21,199 @@ interface ScannerScreenProps {
   setScannedItems: (items: Item[]) => void;
 }
 
-/** 
-    SCANNER SCREEN FUNCTION (scannedItems, setScannedItems)
-*/
+
+ /* ************************* *
+  * |SCANNER SCREEN FUNCTION| *
+  * ************************* */
 export default function ScannerScreen({ scannedItems, setScannedItems }: ScannerScreenProps) {
   
-  // Create hasPermission as a stateful boolean value, and setHasPermission function to handle it.
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
-  
-  // Fallback for permission
-  const [showFallback, setShowFallback] = useState(false);
+  console.log('ScannerScreen re-rendering.');
 
-  // Create scanned stateful value, and setScanned function to handle it, initializing it to false.
+  /* ****************** *
+   * |INIT STATE HOOKS| *
+   * ****************** */
+
+  // Has permission state hook 
+  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+
+  // Scanned status state hook 
   const [scanned, setScanned] = useState(false);
 
-  // 
-  const [isScanning, setIsScanning] = useState<boolean>(true);
-
-  // OCR state
-  const [ocrProcessing, setOcrProcessing] = useState(false);
+  // Price detection (OCR) state hook 
   const [detectedPrice, setDetectedPrice] = useState<string | null>(null);
+
+  // Item counter for unique IDs and names state hook
+  const [itemCounter, setItemCounter] = useState(1);
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   // 
   const captureRef = useRef<(() => void) | null>(null);
 
+  // State for manual scanning mode - enable manual scanning.
+  const [manualScanMode, setManualScanMode] = useState(true);
+  
+  // Track what to scan for state hook
+  const [scanType, setScanType] = useState<'barcode' | 'price' | null>(null);
+  
+
+  /* ****************************** *
+   * | useEffect STATE HOOK       | *
+   * | PERFORM ACTIONS AFTER      | *
+   * | THE COMPONENT RENDERS      | *
+   * | OR IN RESPONSE TO SPECIFIC | *
+   * | CHANGES IN STATE OR PROPS. | *
+   * ------------------------------ *
+   *  Init scan type                *
+   *  Set permission                *
+  * ****************************** */
   useEffect(() => {
     (async () => {
+      
+      console.log(`ScannerScreen - useEffect - async - Platform.OS: ${Platform.OS}`);
+
+      // Init scan type to null
+      setScanType(null);
+      
       // Asks the user to grant permissions for accessing camera, 
       // then set permission state value –hasPermission– to true by using (status === 'granted').
-
       if (Platform.OS === 'web') {
-        // For web, handle permission in WebBarcodeScanner component.
-        // The WebBarcodeScanner component will handle its own camera permissions 
-        // when it tries to access navigator.mediaDevices. 
-        // If the user denies camera access in the browser, the WebBarcodeScanner will 
-        // catch the error and log it.
-        // Web: Always proceeds to show WebBarcodeScanner (which handles its own permissions)
+        /* 
+          For web, handle permission in WebBarcodeScanner component. 
+          The WebBarcodeScanner component will handle its own camera permissions 
+          when it tries to access navigator.mediaDevices. 
+          If the user denies camera access in the browser, the WebBarcodeScanner will 
+          catch it as an error and log it.
+          Web: Always proceed to show WebBarcodeScanner (which handles its own permissions)   */
+        console.log("Platform OS is web.\n - Setting permission to true.");
         setHasPermission(true);
+        
       } else {
+        console.log("Platform OS is not web. It is " + Platform.OS);
         // For native apps, use expo-camera persmissions
         const { status } = await Camera.requestCameraPermissionsAsync();
-        console.log('Permission status: ', status);
+        console.log(' - Camera.requestCameraPermissionsAsync permission status: ', status);
         setHasPermission(status === "granted"); 
+        console.log(" - Set permission status to 'granted'.");
         // Native: Uses expo-camera permission system
       }
-
-      console.log('Platform.OS');
-      console.log(Platform.OS);
-
-      // This below is using react-native-vision-camera
+      
+      // React-native-vision-camera below: 
       // const cameraPermission = await Camera.requestCameraPermission();
       // console.log('Camera permission: ', cameraPermission);
       // setHasPermission(cameraPermission === "granted");
+
     })();
   }, []);
+
+
+  /* ******************************** *
+   * | FUNCTIONS                    | *
+   * +------------------------------+ *
+   * |  - scanBarcode               | *
+   * +------------------------------+ *
+   * |  - handleBarCodeScanned      | *
+   * +------------------------------+ *
+   * |  - handleCapturedFrame       | *
+   * +------------------------------+ *
+   * |  - captureAndProcessOCR      | *
+   * +------------------------------+ *
+   * |  - updateItem                | *
+   * +------------------------------+ *
+   * |  - handleNamePress           | *
+   * +------------------------------+ *
+   * |  - handleNameSubmit          | *
+   * ******************************** */
+
+  /** [Scan Code btn] => Activates barcode scanning mode */
+  const scanBarcode = () => {
+    console.log('scanBarcode - setScanType barcode');
+    setScanType('barcode');
+    setScanned(false);  // Enable scanning temporarily
+  };
   
-  // Barcode Scan
+  /** Processes scanned barcode data and adds item to list */
   const handleBarCodeScanned = ({type, data}: {type: string; data: string}) => {
-    // When the camera detects the barcode, set the scanned state true, 
-    // and include scanned information data into scannedItems state list. 
-    //  type param - The barcode type.
-    //  data param - The parsed information encoded in the barcode.
     
-    // setIsScanning(true);
-    console.log(`Scan info – type: ${type}, data: ${data}`);
-    // Set scanned state value to true.
+    console.log('-------------------------------------');
+    console.log(`ScannerScreen: handleBarCodeScanned - scanType: ${scanType}, type: ${type}, data: ${data}`);
+    
+    // 
     setScanned(true);
 
-    // Alert.alert('Scanned!', `${type.toUpperCase()}: ${data}`);
+    // 
+    const newId = `item-${Date.now()}`;
+    const newName = `Item ${itemCounter}`;
 
-    // Check for items in scannedItems list that are not passed in the data parameter, 
-    // if so, then include an Item object into the scanned items state list.
     setScannedItems(
-      [...scannedItems
-        .filter(item => item.id !== data), 
-        { id: data, type: type === 'ean13' ? 'UPC' : type === 'qr' ? 'QR' : type, name: '', price: '', quantity: '1' }]);
-        
-    // setIsScanning(false);
+      [ ...scannedItems.filter(item => item.id !== data), 
+        {
+          id: newId, 
+          // type: type === 'ean13' ? 'UPC' : type === 'qr' ? 'QR' : type, 
+          type: type ? type : '-type-', 
+          name: newName,
+          price: '0.00', 
+          quantity: '1', 
+          scanSource: data 
+        }
+      ]);
+    
+    setItemCounter(itemCounter + 1);
     
     // After 2 seconds, set the scanned state value to false.
-    setTimeout(() => setScanned(false), 2000);  // Because the scanned boolean state has to be false in order to scan again.
+    // The scanned boolean state has to be false in order to scan again.
+    setTimeout(() => setScanned(false), 2000);  
+      
+    console.log('ScannerScreen: handleBarCodeScanned - scannedItems:');
+    console.log(scannedItems);
+    console.log('-------------------------------------');
   
+    setScanType(null); // Reset scan type after successful scan.
+
   };
 
-  // OCR processing callback - OCR processing happens here asynchronously.
+  /** Processes captured frame for OCR price detection */
   const handleCapturedFrame = async (imageData: string) => {
     try {
+      // Only process if we're in OCR scan mode.
+      if (scanType !== 'price') return;
+      
       const { data: { text } } = await Tesseract.recognize(imageData, 'eng');
       const priceMatch = text.match(/\$?\d+\.\d{2}/);
+      
+      console.log(' -- priceMatch --');
+      console.log(priceMatch);
+      
       if (priceMatch) {
-        setDetectedPrice(priceMatch[0]);
+        
+        const cleanPrice = priceMatch[0].replace(/[^\d.]/g, ''); // Remove $ and non-numeric symbols
+        setDetectedPrice(cleanPrice);
+        
+        const newId = `item-${Date.now()}`;
+        const newName = `Item #${itemCounter}`;
+        
+        setScannedItems([
+          ...scannedItems, 
+          { id: newId, 
+            type: 'PRICE', 
+            name: newName, 
+            price: cleanPrice, 
+            quantity: '1', 
+            scanSource: 'Scanned price' }
+        ]);
+        
+        setItemCounter(itemCounter + 1);
       }
     } catch (error) {
       console.error('Tesseract Error:', error);
     } finally {
-      setOcrProcessing(false);
+      setScanType(null); // Reset after processing
     }
   };
 
-  // OCR function
+  /** Initiates OCR price scanning process */
   const captureAndProcessOCR = async () => {
-    setOcrProcessing(true);
+    setScanType('price');
+    setScanned(false);
     try {
       console.log("Platform.OS");
       console.log(Platform.OS);
@@ -132,138 +225,131 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
       }
     } catch (error) {
       console.error('OCR Error', error);
-      setOcrProcessing(false);
     }
   };
   
-  // Whenever the price or quantity value changes, 
-  // we update the scanned items state list with the new item price or quantity.
-  // price onChangeText -> update item price
-  const updateItem = (id: string, field: "price" | "quantity", value: string) => {
+  /** Updates item field (price, quantity, or name) in scanned items list */
+  const updateItem = (id: string, field: "price" | "quantity" | "name", value: string) => {
+    console.log('ScannerScreen: updateItem - id: ' + id);
+    console.log('ScannerScreen: updateItem - field: ' + field);
+    console.log('ScannerScreen: updateItem - value: ' + value + ', length ' + value.length);
+    if (value.length > 15) return;
     setScannedItems(
       scannedItems.map(item => 
         item.id === id ? { ...item, [field]: value } : item
       )
     );
+    console.log(scannedItems);
   };
-  
-  // Calculate running total, total automatically recalculates 
-  // whenever an item's price or quantity changes.
+
+  /** Enables editing mode for item name */
+  const handleNamePress = (itemId: string) => {
+    console.log(`onPress -> handleNamePress: ${itemId}`);
+    setEditingItemId(itemId);
+  };
+
+  /** Exits editing mode for item name */
+  const handleNameSubmit = (itemId: string) => {
+    console.log(`onSubmitEditing -> handleNameSubmit: ${itemId}`);
+    console.log(`onBlur -> handleNameSubmit: ${itemId}`);
+    setEditingItemId(null);
+  };
+
+  /** Removes item from scanned items list */
+  const removeItemFromScannedItems = (id: string) => {
+    setScannedItems(scannedItems.filter(item => item.id != id));
+  };
+
+  /* ******************* *
+   * | CALCULATE TOTAL | *
+   * ******************* */
+
+  /** When item's price or quantity changes (on component re-rendering):
+      Calculate running total, total automatically recalculates 
+        - When scannedItems state changes - whenever items are added, updated, or removed 
+        - When any item's price or quantity is modified via the updateItem function 
+        - On any other component re-render - for any state change in the component      
+      This variable is declared as a regular variable inside the component function body. */
   const total = scannedItems.reduce(
     (sum, item) => sum + (parseFloat(item.price) || 0) * (parseInt(item.quantity) || 0), 0
   );
-  
+  //  React functional components re-execute their entire function body on every render, 
+  //  so this calculation above runs fresh each time.
+  // If performance optimization was needed, this could be wrapped in useMemo with scannedItems
+  // as a dependency to only recalculate when the items actually change.
+
+
+  /** CHECK PERMISSIONS */ 
   if (hasPermission === null) {
     return <Text>Requesting camera permission...</Text>;
   }
   if (hasPermission === false) {
-    console.log('hasPermission: ', hasPermission);
-    // console.log();
-    // console.log();
+    console.log('ScannerScreen: hasPermission - ', hasPermission);
     // return <Text>No access to camera</Text>;
     return (
-    <View style={styles.container}>
-      <Text style={styles.emptyMessage}>
-        Camera access denied. {'\n\n'}
-        For mobile: Please install this app by tapping "Add to Home Screen" for better camera access.
-        {'\n\n'}
-        Or enable camera permissions in your browser settings.
-      </Text>
-    </View>
-  );
+      <View style={styles.container}>
+        <Text style={styles.emptyMessage}>
+          Camera access denied. {'\n\n'}
+          For mobile: Please install this app by tapping "Add to Home Screen" for better camera access.
+          {'\n\n'}
+          Or enable camera permissions in your browser settings.
+        </Text>
+      </View>
+    );
   }
 
-  // REMOVE ITEM FROM SCANNED LIST
-  const removeItemFromScannedItems = (id: string) => {
-    // Alert.alert(`
-    //   Removing item from list:\n${id}  
-    // `);
-    setScannedItems(scannedItems.filter(item => item.id != id));
-  };
 
-  // This below is for react-native-vision-camera
-  // Fetch a list of available camera devices and select the back camera for barcode scanning. 
-  // const devices = useCameraDevices();
-  // const device = getCameraDevice(devices, "back");
-
-  // Configure the barcode scanner using the useCodeScanner() hook, which requires two main properties: codeTypes and onCodeScanned.
-  // const codeScanner: CodeScanner = useCodeScanner({
-  //   codeTypes: ['ean-13'], // remember qr code too
-  //   // codeTypes: ['qr', 'ean-13'],
-  //   onCodeScanned: (codes) => {
-  //     for (const code of codes) {
-  //       setIsScanning(false);
-  //       console.log(`Scanned ${codes.length} codes!`);
-  //       console.log(`Code Value: ${code.value}`);
-  //       Alert.alert('Scanned Code', `${code.value}`, [
-  //         {
-  //           text: 'OK',
-  //           onPress: () => setIsScanning(true), // Stop scanning after alert
-  //         }
-  //       ]);
-  //     }
-  //   },
-  // });
-
-  // Handle the UI response for loading the camer and managing permission.
-  // if (!device) return <Text>Loading camera...</Text>;
-  // if (device == null) return <Text>Loading camera...</Text>;
-  // if (!hasPermission) return <Text>No camera permission</Text>;
-  
+  /* ****************** *
+   * | USER INTERFACE | *
+   * ****************** */
   return (
     <View style={styles.container}>
-
-      {/* CAMERA SECTION */}
+      
+      {/** CAMERA SECTION - WEB and/or NATIVE DEVICE */}
       {Platform.OS === 'web' ? (
-        <WebBarcodeScanner
-          onBarcodeScanned={scanned ? () => {} : handleBarCodeScanned}
-          style={styles.camera}
-          facing="back"
-          captureRef={captureRef}
-          onCaptureFrame={handleCapturedFrame}
-        />
-      ) : (
-        <CameraView
-          onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-          style={styles.camera}
-          ratio="16:9"
-          facing="back"
-        >
-          {/* Rectangle aim on camera */}
-          <View style={styles.overlay}>
-            <View style={styles.scanArea} />
+        scanType ? (
+          <WebBarcodeScanner
+            onBarcodeScanned={scanType === 'barcode' ? handleBarCodeScanned : () => {}}
+            style={styles.camera}
+            facing="back"
+            onCaptureFrame={scanType === 'price' ? handleCapturedFrame : () => {}}
+            captureRef={captureRef}
+          />
+        ) : (
+          <View style={[styles.camera, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }]}>
+            <Text style={{ color: 'white', fontSize: 18 }}>Press a scan button to activate camera</Text>
           </View>
-        </CameraView>
+        )
+      ) : (
+        scanType ? (
+          <CameraView 
+            onBarcodeScanned={handleBarCodeScanned}
+            style={styles.camera}
+            ratio="16:9"
+            facing="back"
+          />
+        ) : (
+          <View style={[styles.camera, { justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }]}>
+            <Text style={{ color: 'white', fontSize: 18 }}>Press a scan button to activate camera</Text>
+          </View>
+        )
       )}
       
-      {/* <SafeAreaView style={styles.safeAreaViewContainer}> */}
-      {/* <Camera
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={true}
-        // frameProcessorFps={2}
-        // codeScanner={codeScanner}
-        // codeScanner={isScanning ? codeScanner : undefined}
-      > */}
-        {/* <View style={styles.cameraInfoContainer}>
-          <Text style={styles.cameraInfoText}>Point the camera at a code</Text>
-        </View> */}
-      {/* </Camera> */}
-      {/* </SafeAreaView> */}
-      
-      {/* TOTAL PRICE AMOUNT */}
+
+      {/** TOTAL PRICE AMOUNT */}
       <Text style={styles.total}>
         Total: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </Text>
+
 
       {/* SCANNED ITEMS LIST */}
       <ScrollView style={styles.itemsList}>
         
         {(() => {
-          console.log(`Scanned items list: `, scannedItems);
+          console.log(`ScannerScreen: ScrollView - Scanned items list: `, scannedItems);
           return null;
         })()}
-
+        
         {scannedItems.length === 0 ? (
           <Text style={styles.emptyMessage}>No items scanned yet. Scan a barcode to get started!</Text>
         ) : (
@@ -272,26 +358,40 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
             // Main View container of an item
             <View key={item.id} style={styles.item}>
 
-              {/* UPC LABEL */}
-              <Text style={styles.upc}>{item.type.toUpperCase()}: {item.id}</Text>
+              {/* UPC LABEL, QUANTITY AND PRICE ROW */}
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
 
-              {/* DELETE BUTTON */}
-              <TouchableOpacity style={styles.deleteButton} 
-                onPress={() => {
-                  removeItemFromScannedItems(item.id)
-                }}>
-                <Text style={{ color: 'white', fontSize: 16 }}>X</Text>
-              </TouchableOpacity>
-
-              {/* PRICE AND QUANTITY */}
-              <View style={styles.inputRow}>
-                
-                {/* PRICE LABEL */}
-                <Text style={[styles.label, { width: 55 }]}>Price:</Text>
-                
-                {/* PRICE INPUT */}
+                {editingItemId === item.id ? (
+                  <TextInput
+                    style={[styles.upc, { borderBottomWidth: 1, borderBottomColor: '#ccc' }]}
+                    value={item.name}
+                    onChangeText={val => 
+                      updateItem(item.id, "name", val)
+                    }
+                    onSubmitEditing={() => handleNameSubmit(item.id)}
+                    onBlur={() => handleNameSubmit(item.id)}
+                    autoFocus
+                  />
+                ) : (
+                  <TouchableOpacity onPress={() => handleNamePress(item.id)}>
+                    <Text style={styles.upc}>
+                      {item.name || `${item.type.toUpperCase()}: ${item.id}`}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+                <Text style={{fontSize: 15, paddingLeft: 10, paddingRight: 10}}>X</Text>
                 <TextInput 
-                  style={styles.input}
+                    style={[styles.input, { width: 45 }]}
+                    placeholder="1"
+                    keyboardType="numeric"
+                    value={item.quantity}
+                    onChangeText={val =>
+                      updateItem(item.id, "quantity", val)
+                    }
+                  />
+                <Text style={{fontSize: 17, paddingLeft: 0, paddingRight: 1}}>$ </Text>
+                <TextInput 
+                  style={[styles.input, { width: 80 }]}
                   placeholder="0.00"
                   keyboardType="decimal-pad"
                   value={item.price}
@@ -302,24 +402,18 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
                     }
                   }}
                 />
-              {/* </View> */}
-              
-              {/* <View style={styles.inputRow}> */}
-
-                {/* QUANTITY LABEL */}
-                <Text style={styles.label}>Quantity:</Text>
-
-                {/* QUANTITY INPUT */}
-                <TextInput 
-                  style={[styles.input, { width: 71 }]}
-                  placeholder="1"
-                  keyboardType="numeric"
-                  value={item.quantity}
-                  onChangeText={val =>
-                    updateItem(item.id, "quantity", val)
-                  }
-                />
               </View>
+              
+              {/* SMALL ITALIC TEXT - SCAN SOURCE INFO */}
+              <Text style={styles.scanSource}>{item.scanSource}</Text>
+              
+              {/* DELETE BUTTON */}
+              <TouchableOpacity style={styles.deleteButton} 
+                onPress={() => {
+                  removeItemFromScannedItems(item.id)
+                }}>
+                <Text style={{ color: 'white', fontSize: 16 }}>X</Text>
+              </TouchableOpacity>
 
             </View>
           ))
@@ -328,61 +422,44 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
 
       {/* ACTION BUTTONS */}
       <View>
-        <ScrollView horizontal style={styles.actionButtons} showsHorizontalScrollIndicator={false}>
-        
-          {/* <TouchableOpacity style={styles.actionButton} onPress={() => setScannedItems([])}>
-            <Text style={styles.actionButtonText}>Clear All</Text>
+        <ScrollView horizontal 
+                    style={{ paddingVertical: 23 }} 
+                    contentContainerStyle={{ 
+                      justifyContent: 'center',
+                      paddingHorizontal: 18
+                    }}
+                    showsHorizontalScrollIndicator={false}>
+          
+          {/* UPC or QR CODE SCANNER BUTTON */}
+          <TouchableOpacity 
+            style={[styles.actionButton, {backgroundColor: '#ffffffff'}]}
+            onPress={scanBarcode}
+          >
+            <Text style={[styles.actionButtonText, {color: 'black'}]}>
+              {scanned ? 'Scanning...' : 'Scan Code'}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={() => setScannedItems([])}>
-            <Text style={styles.actionButtonText}>Clear All</Text>
-          </TouchableOpacity> */}
-
-          {/* CLEAR ALL BUTTON */}
-          {/* <TouchableOpacity style={styles.actionButton} onPress={() => {
-            setScannedItems([]);
-            setScanned(false);
-          }}>
-            <Text style={styles.actionButtonText}>Clear All</Text>
-          </TouchableOpacity> */}
-
-          {/* UPC BARCODE SCANNER BUTTON */}
-          <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#444fe6ff'}]}>
-            <Text style={styles.actionButtonText}>
-              {scanned ? 'Scanning...' : 'Scan Barcode'}
-              </Text>
-          </TouchableOpacity>
-
-          {/* OCR PRICE DETECTION BUTTON */}
+          
+          {/* 'SCAN PRICE' - PRICE (OCR) DETECTION BUTTON */}
           <TouchableOpacity
             style={[styles.actionButton, { backgroundColor: '#28a745' }]}
             onPress={captureAndProcessOCR}
-            disabled={ocrProcessing}
+            disabled={scanType === 'price'} // Use scanType instead
           >
             <Text style={styles.actionButtonText}>
-              {ocrProcessing ? 'Processing...' : 'Scan Price'}
+              {scanType === 'price' ? 'Processing...' : 'Scan Price'}
             </Text>
           </TouchableOpacity>
-
-          {/* QR CODE SCANNER BUTTON */}
-          <TouchableOpacity style={[styles.actionButton, {backgroundColor: '#ffffffff'}]}>
-            <Text style={[styles.actionButtonText, {color: 'black'}]}>
-              Scan QR Code
-            </Text>
-          </TouchableOpacity>
-
 
         </ScrollView>
       </View>
-
+      
       {/* TOTAL PRICE AMOUNT VIEW */}
-      <View style={styles.totalAmountView}>
-        <Text style={styles.total}>Total: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
-        {detectedPrice && (
-          <Text style={[styles.total, { color: '#28a745', fontSize: 18 }]}>
-            Detected Price: {detectedPrice}
-          </Text>
-        )}
-      </View>
+      {/* <View style={styles.totalAmountView}> */}
+        {/* <Text style={styles.total}> */}
+          {/* Total: ${total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} */}
+        {/* </Text> */}
+      {/* </View> */}
       
       {/* BUTTON TO SCAN ANOTHER ITEM */}
       {/* <TouchableOpacity style={styles.buttonContainer} onPress={() => setScanned(false)}>
@@ -396,7 +473,7 @@ export default function ScannerScreen({ scannedItems, setScannedItems }: Scanner
 const styles = StyleSheet.create({
 
   totalAmountView: {
-    marginBottom: 15
+    marginBottom: 0
   },
 
   // Main container
@@ -579,22 +656,24 @@ const styles = StyleSheet.create({
   },
 
   // Horizontal Action Buttons section container
-  actionButtons: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    // height: 40,
-  },
+  // actionButtons: {
+  //   // paddingHorizontal: 16,
+  //   paddingVertical: 23,
+  //   // height: 40,
+  // },
   actionButton: {
     backgroundColor: '#dc3545',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
     marginRight: 12,
+    width: 170
   },
   actionButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: '600',
+    textAlign: 'center'
   },
 
   // When there are no items (empty list) container
@@ -605,6 +684,15 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     marginTop: 40,
     paddingHorizontal: 20,
+  },
+
+  // Scan source info text
+  scanSource: {
+    fontSize: 12,
+    color: '#6c757d',
+    fontStyle: 'italic',
+    marginTop: 4,
+    marginLeft: 2,
   },
 
 });
